@@ -1,0 +1,50 @@
+version: "3.7"
+
+# https://docs.docker.com/compose/compose-file/
+# https://github.com/andyshinn/docker-dnsmasq/issues/5
+# https://github.com/storytel/dnsmasq
+# https://blog.csainty.com/2016/09/running-dnsmasq-in-docker.html
+# https://dev.to/expertsinside/a-collection-of-my-favorites-dns-servers-bc0
+
+services:
+  dnsmasq:
+    build: ./docker-services/dnsmasq
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./docker-conf/dnsmasq:/etc/dnsmasq
+    # entrypoint:
+    #   - dnsmasq
+    #   - -d   # --no-daemon             - in debug?
+    #   - -k   # --keep-in-foreground    - in production?
+    #   - -q   # --log-queries
+    #   - -h   # --no-hosts
+
+  nginx:
+    image: nginx
+    ports:
+      - 80:80
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
+
+  nginx-12321:
+    image: nginx
+    ports:
+      - 12321:80
+    environment:
+      NGINX_CONFIG: |
+        server {
+          server_name authorization-service-svc;
+          location / {
+            proxy_pass http://host.docker.internal:3000/;
+          }
+        }
+    command:
+      - bash
+      - -c
+      - |
+        echo "$$NGINX_CONFIG" > /etc/nginx/conf.d/proxy.conf
+        nginx -g "daemon off;"
