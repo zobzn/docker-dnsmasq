@@ -1,10 +1,8 @@
 version: "3.7"
 
-# https://docs.docker.com/compose/compose-file/
-# https://github.com/andyshinn/docker-dnsmasq/issues/5
-# https://github.com/storytel/dnsmasq
-# https://blog.csainty.com/2016/09/running-dnsmasq-in-docker.html
-# https://dev.to/expertsinside/a-collection-of-my-favorites-dns-servers-bc0
+# docker.for.win.localhost
+# gateway.docker.internal
+# host.docker.internal
 
 services:
   dnsmasq:
@@ -14,28 +12,32 @@ services:
       - "53:53/udp"
     cap_add:
       - NET_ADMIN
-    volumes:
-      - ./docker-conf/dnsmasq:/etc/dnsmasq
-    # entrypoint:
-    #   - dnsmasq
-    #   - -d   # --no-daemon             - in debug?
-    #   - -k   # --keep-in-foreground    - in production?
-    #   - -q   # --log-queries
-    #   - -h   # --no-hosts
+    command:
+      - dnsmasq
+      - --keep-in-foreground
+      - --no-hosts
+      - --no-resolv
+      - --log-queries
+      - --log-facility=-
+      - --domain-needed
+      - --bogus-priv
+      - --server=192.168.0.1
+      - --server=1.1.1.1
+      - --address=/local/127.0.0.1
+      - --alias=1.2.3.4,5.6.7.8
 
-  nginx:
+  proxy:
     image: nginx
     ports:
       - 80:80
-    volumes:
-      - ./www:/usr/share/nginx/html:ro
-
-  nginx-12321:
-    image: nginx
-    ports:
-      - 12321:80
     environment:
       NGINX_CONFIG: |
+        server {
+          listen 80 default_server;
+          location / {
+            proxy_pass http://nginx:80/;
+          }
+        }
         server {
           server_name authorization-service-svc;
           location / {
@@ -48,3 +50,8 @@ services:
       - |
         echo "$$NGINX_CONFIG" > /etc/nginx/conf.d/proxy.conf
         nginx -g "daemon off;"
+
+  nginx:
+    image: nginx
+    volumes:
+      - ./www:/usr/share/nginx/html:ro
